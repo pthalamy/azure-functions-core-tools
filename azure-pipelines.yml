@@ -60,7 +60,6 @@ jobs:
       SessionTimeout: '60'
       MaxConcurrency: '50'
       MaxRetryAttempts: '5'
-    condition: and(succeeded(), eq(variables['IsReleaseBuild'], 'true'))
   - task: EsrpCodeSigning@1
     displayName: 'Third party signing'
     inputs:
@@ -95,7 +94,6 @@ jobs:
       SessionTimeout: '60'
       MaxConcurrency: '50'
       MaxRetryAttempts: '5'
-    condition: and(succeeded(), eq(variables['IsReleaseBuild'], 'true'))
   - pwsh: |
       $compress = @{
         Path = "$(Build.Repository.LocalPath)\artifacts\ToSign\Authenticode"
