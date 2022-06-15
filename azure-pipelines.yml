@@ -18,7 +18,7 @@ jobs:
     demands:
       - ImageOverride -equals MMS2022TLS
   steps:
-- pwsh: |
+  - pwsh: |
       mkdir $(Build.Repository.LocalPath)\artifacts
       mkdir $(Build.Repository.LocalPath)\artifacts\ToSign\Authenticode
       mkdir $(Build.Repository.LocalPath)\artifacts\ToSign\ThirdParty
