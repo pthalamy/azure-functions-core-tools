@@ -51,7 +51,9 @@ namespace Azure.Functions.Cli.Helpers
 
         public static void PrintPySteinReferenceMessage()
         {
-            ColoredConsole.Write(AdditionalInfoColor("The new Python programming model is in public preview. Learn more at "));
+            ColoredConsole.Write(AdditionalInfoColor("The new Python programming model is in public preview. "
+            + "Running the function app locally without a valid connection string requires local Azure storage emulation: https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azurite?tabs=visual-studio. " +
+            "Learn more about the new programming model at "));
             PrintPySteinWikiLink();
         }
 
