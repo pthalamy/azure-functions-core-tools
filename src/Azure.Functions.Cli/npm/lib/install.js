@@ -40,7 +40,7 @@ if (os.platform() === 'win32') {
     throw Error('platform ' + os.platform() + ' isn\'t supported');
 }
 
-const endpoint = 'https://functionscdn.azureedge.net/public/' + version + '/Azure.Functions.Cli.' + platform + '.' + version + '.zip';
+const endpoint = 'https://azfuncnodev4.blob.core.windows.net/public/' + version + '/Azure.Functions.Cli.' + platform + '.' + version + '.zip';
 console.log('attempting to GET %j', endpoint);
 const options = url.parse(endpoint);
 // npm config preceed system environment
