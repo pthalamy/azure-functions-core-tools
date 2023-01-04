@@ -34,7 +34,7 @@ namespace Azure.Functions.Cli.Tests.E2E.Helpers
 
         public static async Task Run(RunConfiguration[] runConfigurations, ITestOutputHelper output = null, string workingDir = null, bool startHost = false)
         {
-            string workingDirectory = workingDir ?? Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            string workingDirectory = workingDir ?? Path.Combine(Directory.GetCurrentDirectory(), "temp", Path.GetRandomFileName());
 
             bool cleanupDirectory = string.IsNullOrEmpty(workingDir);
             if (cleanupDirectory)
