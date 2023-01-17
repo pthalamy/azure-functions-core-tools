@@ -316,7 +316,6 @@ namespace Build
             Directory.CreateDirectory(authentiCodeDirectory);
             // Add a global.json to the authentiCodeDirectory, specifying the use of he
             var authentiCodeGlobalJson = Path.Combine(authentiCodeDirectory, "global.json");
-            File.Create(authentiCodeGlobalJson);
             File.WriteAllText(authentiCodeGlobalJson, "{\n\t\"sdk\": {\n\t\t\"version\": \"6.0.11\"\t\n}\n}");
             
             Directory.CreateDirectory(thirdPartyDirectory);
