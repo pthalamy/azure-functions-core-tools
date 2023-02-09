@@ -1,8 +1,10 @@
-import azure.functions as func
+import logging
 
+from azure.functions import HttpRequest, HttpResponse
+
+# Learn more about new programming model at aka.ms/pythonprogrammingmodel
 app = func.FunctionApp()
 
-@app.function_name(name="HttpTrigger1")
 @app.route(route="hello") # HTTP Trigger
-def test_function(req: func.HttpRequest) -> func.HttpResponse:
-    return func.HttpResponse("HttpTrigger1 function processed a request!!!")
+def test_function(req: HttpRequest) -> HttpResponse:
+    return HttpResponse("HttpTrigger1 function processed a request!!!")
