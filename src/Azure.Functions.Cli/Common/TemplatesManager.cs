@@ -22,7 +22,6 @@ namespace Azure.Functions.Cli.Common
 
         // New Template
         private const string PythonProgrammingModelFunctionBodyFileKey = "function_body.py";
-        private const string PythonProgrammingModelTemplateDoc = "Template.md";
 
         private readonly ISecretsManager _secretsManager;
 
@@ -44,7 +43,7 @@ namespace Azure.Functions.Cli.Common
             var extensionBundleManager = ExtensionBundleHelper.GetExtensionBundleManager();
             string templatesJson;
 
-            if (false) // temporary: For testing. (extensionBundleManager.IsExtensionBundleConfigured())
+            if (extensionBundleManager.IsExtensionBundleConfigured())
             {
                 await ExtensionBundleHelper.GetExtensionBundle();
                 var contentProvider = ExtensionBundleHelper.GetExtensionBundleContentProvider();
@@ -213,6 +212,95 @@ namespace Azure.Functions.Cli.Common
             }
         }
 
+        public async Task DeployNewTemplate(string fileName, TemplateJob job, NewTemplate template, IDictionary<string, string> variables)
+        {
+            variables.Add("FUNCTION_BODY_TARGET_FILE_NAME", fileName);
+            foreach (var actionName in job.Actions)
+            {
+                var action = template.Actions.First(x => x.Name == actionName);
+                if (action.ActionType == "UserInput")
+                {
+                    continue;
+                }
+
+                RunTemplateActionAction(template, action, variables);
+            }
+        }
+
+        private async void RunTemplateActionAction(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
+        {
+            if (action.ActionType == "ReadFromFile")
+            {
+                RunReadFromFileTemplateAction(template, action, variables);
+            }
+            else if (action.ActionType == "ReplaceTokensInText")
+            {
+                ReplaceTokensInText(template, action, variables);
+            }
+            else if (action.ActionType == "AppendToFile")
+            {
+                await WriteFunctionBody(template, action, variables);
+            }
+
+            throw new CliException($"Template Failure. Action type '{action.ActionType}' is not supported.");
+        }
+        
+        private void RunReadFromFileTemplateAction (NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
+        {
+            if (!template.Files.ContainsKey(action.FilePath))
+            {
+                throw new CliException($"Template Failure. File name '{action.FilePath}' is not found in the template.");
+            }
+
+            var fileContent = template.Files[action.FilePath];
+            variables.Add(action.AssignTo, fileContent);
+        }
+
+        private void ReplaceTokensInText(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
+        {
+            if (!variables.ContainsKey(action.Source))
+            {
+                throw new CliException($"Template Failure. Source '{action.Source}' value is not found.");
+            }
+
+            var sourceContent = variables[action.Source];
+
+            foreach (var variable in variables)
+            {
+                sourceContent = sourceContent.Replace(variable.Key, variable.Value);
+            }
+
+            sourceContent = sourceContent.Replace("", "");
+            variables[action.Source] = sourceContent;
+        }
+
+        private async Task WriteFunctionBody(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
+        {
+            if (!variables.ContainsKey(action.Source))
+            {
+                throw new CliException($"Template Failure. Source '{action.Source}' value is not found.");
+            }
+
+            var fileName = variables["FUNCTION_BODY_TARGET_FILE_NAME"];
+
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                var filePath = Path.Combine(Environment.CurrentDirectory, fileName);
+                AskToRemoveFileIfExists(filePath, variables.First(x => x.Key.Contains("FUNCTION_NAME_INPUT")).Value, removeFile: true);
+                ColoredConsole.WriteLine($"Creating a new file {filePath}");
+                await FileSystemHelpers.WriteAllTextToFileAsync(filePath, variables[action.Source]);
+            }
+            else
+            {
+                var mainFilePath = Path.Combine(Environment.CurrentDirectory, PythonProgrammingModelMainFileKey);
+                var mainFileContent = await FileSystemHelpers.ReadAllTextFromFileAsync(mainFilePath);
+                ColoredConsole.WriteLine($"Appending to {mainFilePath}");
+                mainFileContent = $"{mainFileContent}{Environment.NewLine}{Environment.NewLine}{variables[action.Source]}";
+                // Update the file. 
+                await FileSystemHelpers.WriteAllTextToFileAsync(mainFilePath, mainFileContent);
+            }
+        }
+
         private static void AskToRemoveFileIfExists(string filePath, string functionName, bool removeFile = false)
         {
             var fileExists = FileSystemHelpers.FileExists(filePath);
@@ -318,7 +406,8 @@ namespace Azure.Functions.Cli.Common
         {
             // will add more templates
             var templatesList = new string[] {
-                "HttpTrigger"
+                "HttpTrigger",
+                "TimerTrigger"
             };
 
             var templates = new List<NewTemplate>();
@@ -338,7 +427,7 @@ namespace Azure.Functions.Cli.Common
             template.Files = new Dictionary<string, string> {
                 { PythonProgrammingModelMainFileKey, await StaticResources.GetValue($"{prefix}-{templateName}-function_app.py") },
                 { PythonProgrammingModelFunctionBodyFileKey, await StaticResources.GetValue($"{prefix}-{templateName}-function_body.py") },
-                { PythonProgrammingModelTemplateDoc, await StaticResources.GetValue($"{prefix}-{templateName}-Template.md") }
+                // { PythonProgrammingModelTemplateDoc, await StaticResources.GetValue($"{prefix}-{templateName}-Template.md") }
         };
             return template;
         }

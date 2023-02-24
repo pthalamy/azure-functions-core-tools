@@ -38,6 +38,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
         private string FileName { get; set; }
         public AuthorizationLevel? AuthorizationLevel { get; set; }
 
+        IDictionary<string, string> _newTemplateLabelMap;
         Lazy<IEnumerable<Template>> _templates;
         Lazy<IEnumerable<NewTemplate>> _newTemplates;
         Lazy<IEnumerable<UserPrompt>> _userPrompts;
@@ -56,6 +57,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             _userPrompts = new Lazy<IEnumerable<UserPrompt>>(() => {
                 return _templatesManager.UserPrompts.Result;
             });
+            _newTemplateLabelMap = CreateLabelMap();
         }
 
         public override ICommandLineParserResult ParseArgs(string[] args)
@@ -98,7 +100,6 @@ namespace Azure.Functions.Cli.Actions.LocalActions
 
         public async override Task RunAsync()
         {
-            Console.WriteLine("Khuram test: In CreateFunctionAction.RunAsync");
             // Check if the command only ran for help. 
             if (!string.IsNullOrEmpty(TriggerNameForHelp))
             {
@@ -172,20 +173,17 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             }
             else
             {
+                TemplateName = TemplateName ?? SelectionMenuHelper.DisplaySelectionWizard(GetTriggerNamesFromNewTemplates(Languages.Python));
                 // Implementing the new Python Template
                 var newTemplatesList = _newTemplates.Value;
                 var userPrompts = _userPrompts.Value;
                 var variables = new Dictionary<string, string>();
                 // TODO: Get template name here.
                 // TemplateName = TemplateName ?? SelectionMenuHelper.DisplaySelectionWizard(GetTriggerNames(templateLanguage));
-                var template = newTemplatesList.FirstOrDefault(t => string.Equals(t.Name, "HTTP trigger", StringComparison.CurrentCultureIgnoreCase) && string.Equals(t.Language, Languages.Python, StringComparison.CurrentCultureIgnoreCase));
+                var template = newTemplatesList.FirstOrDefault(t => string.Equals(t.Name, TemplateName, StringComparison.CurrentCultureIgnoreCase) && string.Equals(t.Language, Languages.Python, StringComparison.CurrentCultureIgnoreCase));
                 var actionNames = template.Jobs.First(x => x.Input.UserCommand == "appendToFile").Actions;
                 var actions = template.Actions.Where(x => actionNames.Contains(x.Name)).ToList();
                 RunUserInputActions(actionNames, actions, variables);
-
-
-
-
             }
             
             ColoredConsole.WriteLine($"The function \"{FunctionName}\" was created successfully from the \"{TemplateName}\" template.");
@@ -201,119 +199,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             }
         }
 
-        private string RunUserInputActions(IList<string> actionNames, IList<TemplateAction> actions, IDictionary<string, string> variables)
-        {
-            foreach (var actionName in actionNames)
-            {
-                var action = actions.First(x => x.Name == actionName);
-                if (action.ActionType == "UserInput")
-                {
-                    continue;
-                }
-
-                var userPrompt = _userPrompts.Value.First(x => x.Name == action.ParamId);
-
-                var label = LabelMap(userPrompt.Label);
-                ColoredConsole.Write($"{label}: ");
-
-                var defaultValue = action.DefaultValue ?? userPrompt.DefaultValue;
-                if (!string.IsNullOrEmpty(defaultValue))
-                {
-                    ColoredConsole.Write($"[{defaultValue}] ");
-                }
-
-                string response = string.Empty;
-                if (userPrompt.Value == "enum" || userPrompt.Value == "boolean")
-                {
-                    var values = new List<string>() { true.ToString(), false.ToString() };
-                    if (userPrompt.Value == "enum")
-                    {
-                        values = userPrompt.EnumList.Select(x => x.Value).ToList();
-                    }
-
-                    while (!string.IsNullOrEmpty(response))
-                    {
-                        response = SelectionMenuHelper.DisplaySelectionWizard(values);
-                        if (string.IsNullOrEmpty(response) && !string.IsNullOrEmpty(defaultValue))
-                        {
-                            response = defaultValue;
-                        }
-                    }
-                }
-                else
-                {
-                    while (!string.IsNullOrEmpty(response))
-                    {
-                        response = Console.ReadLine();
-                        if (string.IsNullOrEmpty(response) && !string.IsNullOrEmpty(defaultValue))
-                        {
-                            response = defaultValue;
-                        }
-                    }
-                }
-
-                var variableName = 
-            }
-        }
-
-        private string LabelMap(string label)
-        {
-            if (label == "$httpTrigger_route_label")
-                return "Provide the route";
-
-            if (label == "Provide a function name")
-                return "Provide a function name";
-
-            if (label == "$httpTrigger_authLevel_label")
-                return "Provide the Auth Level";
-
-            if (label == "$queueTrigger_queueName_label")
-                return "Provide the Queue Name";
-
-            if (label == "$variables_storageConnStringLabel")
-                return "Provide the storage connection string";
-
-            if (label == "cosmosDBTrigger-connectionStringSetting")
-                return "Provide the Cosmos DB Connectiong Stirng";
-
-            if (label == "$cosmosDBIn_databaseName_label")
-                return "Provide the Cosmos DB Database Name";
-
-            if (label == "$cosmosDBIn_collectionName_label")
-                return "Provide the Cosmos DB Collection Name";
-
-            if (label == "$cosmosDBIn_leaseCollectionName_label")
-                return "Provide the Cosmos DB Lease Collection Name";
-
-            if (label == "$cosmosDBIn_createIfNotExists_label")
-                return "Create If Not Exists";
-
-            if (label == "$eventHubTrigger_connection_label")
-                return "Provide the EventHub Connection";
-
-            if (label == "$eventHubOut_path_label")
-                return "Provide the EventHub Oputput";
-
-            if (label == "$eventHubTrigger_consumerGroup_label")
-                return "Provide the EventHub Consumer Group";
-
-            if (label == "$eventHubTrigger_cardinality_label")
-                return "Provide the EventHub Cardinality";
-
-            if (label == "$serviceBusTrigger_connection_label")
-                return "Provide the ServiceBug Connection";
-
-            if (label == "$serviceBusTrigger_queueName_label")
-                return "Provide the Queue Name";
-
-            if (label == "$serviceBusTrigger_topicName_label")
-                return "Provide the Topic Name";
-
-            if (label == "$serviceBusTrigger_subscriptionName_label")
-                return "Provide the Subscripton Name";
-
-            return string.Empty;
-        }
+        
 
         public bool ValidateInputs()
         {
@@ -409,6 +295,21 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             }
 
             return _templates.Value.Where(t => t.Metadata.Language.Equals(templateLanguage, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private IEnumerable<string> GetTriggerNamesFromNewTemplates(string templateLanguage)
+        {
+            return GetNewTemplates(templateLanguage).Select(t => t.Name).Distinct();
+        }
+
+        private IEnumerable<NewTemplate> GetNewTemplates(string templateLanguage)
+        {
+            if (IsNewPythonProgrammingModel())
+            {
+                return _newTemplates.Value.Where(t => t.Language.Equals(templateLanguage, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return new List<NewTemplate>();
         }
 
         private void ConfigureAuthorizationLevel(Template template)
@@ -566,6 +467,130 @@ namespace Azure.Functions.Cli.Actions.LocalActions
         private bool CurrentPathHasLocalSettings()
         {
             return FileSystemHelpers.FileExists(Path.Combine(Environment.CurrentDirectory, "local.settings.json"));
+        }
+
+        // New Template
+        private void RunUserInputActions(IList<string> actionNames, IList<TemplateAction> actions, IDictionary<string, string> variables)
+        {
+            foreach (var actionName in actionNames)
+            {
+                var action = actions.First(x => x.Name == actionName);
+                if (action.ActionType == "UserInput")
+                {
+                    continue;
+                }
+
+                var userPrompt = _userPrompts.Value.First(x => x.Name == action.ParamId);
+                var defaultValue = action.DefaultValue ?? userPrompt.DefaultValue;
+                string response = string.Empty;
+                if (userPrompt.Value == "enum" || userPrompt.Value == "boolean")
+                {
+                    var values = new List<string>() { true.ToString(), false.ToString() };
+                    if (userPrompt.Value == "enum")
+                    {
+                        values = userPrompt.EnumList.Select(x => x.Value).ToList();
+                    }
+
+                    while (!ValidateResponse(userPrompt, response))
+                    {
+                        SelectionMenuHelper.DisplaySelectionWizardPrompt(LabelMap(userPrompt.Label));
+                        response = SelectionMenuHelper.DisplaySelectionWizard(values);
+                        if (string.IsNullOrEmpty(response) && !string.IsNullOrEmpty(defaultValue))
+                        {
+                            response = defaultValue;
+                        }
+                    }
+                }
+                else
+                {
+                    // User the function name if it is already provided by user
+                    // todo: User Constants
+                    if ("getFunctionName".Equals(actionName, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(FunctionName))
+                    {
+                        response = FunctionName;
+                    }
+
+                    while (!ValidateResponse(userPrompt, response))
+                    {
+                        PrintInputLabel(userPrompt, defaultValue);
+                        response = Console.ReadLine();
+                        if (string.IsNullOrEmpty(response) && !string.IsNullOrEmpty(defaultValue))
+                        {
+                            response = defaultValue;
+                        }
+                    }
+                }
+
+                var variableName = action.AssignTo;
+                variables.Add(variableName, response);
+            }
+        }
+
+        private void PrintInputLabel(UserPrompt userPrompt, string defaultValue)
+        {
+            var label = LabelMap(userPrompt.Label);
+            ColoredConsole.Write($"{label}: ");
+            if (!string.IsNullOrEmpty(defaultValue))
+            {
+                ColoredConsole.Write($"[{defaultValue}] ");
+            }
+        }
+
+        private bool ValidateResponse(UserPrompt userPrompt, string response)
+        {
+            if (string.IsNullOrEmpty(response))
+            {
+                return false;
+            }
+
+            var validator = userPrompt.Validators?.FirstOrDefault();
+            if (validator == null)
+            {
+                return false;
+            }
+
+            var validationRegex = new Regex(validator.Expression);
+            var isValid = validationRegex.IsMatch(response);
+
+            if (!isValid)
+            {
+                ColoredConsole.WriteLine($"{this.LabelMap(userPrompt.Label)} is not valid.");
+            }
+
+            return isValid;
+        }
+
+        private string LabelMap(string label)
+        {
+            if (!_newTemplateLabelMap.ContainsKey(label))
+                return string.Empty;
+
+            return _newTemplateLabelMap[label];
+        }
+
+        private static IDictionary<string, string> CreateLabelMap()
+        {
+            return new Dictionary<string, string>
+            {
+                { "$httpTrigger_route_label", "Route" },
+                { "Provide a function name", "Function Name" },
+                { "$httpTrigger_authLevel_label", "Auth Level" },
+                { "$queueTrigger_queueName_label", "Queue Name" },
+                { "$variables_storageConnStringLabel", "Storage Connection String" },
+                { "cosmosDBTrigger-connectionStringSetting", "CosmosDB Connectiong Stirng" },
+                { "$cosmosDBIn_databaseName_label", "CosmosDB Database Name" },
+                { "$cosmosDBIn_collectionName_label", "CosmosDB Collection Name" },
+                { "$cosmosDBIn_leaseCollectionName_label", "CosmosDB Lease Collection Name" },
+                { "$cosmosDBIn_createIfNotExists_label", "Create If Not Exists" },
+                { "$eventHubTrigger_connection_label", "EventHub Connection" },
+                { "$eventHubOut_path_label", "EventHub Out Path" },
+                { "$eventHubTrigger_consumerGroup_label", "EventHub Consumer Group" },
+                { "$eventHubTrigger_cardinality_label", "EventHub Cardinality" },
+                { "$serviceBusTrigger_connection_label", "Service Bus Connection" },
+                { "$serviceBusTrigger_queueName_label", "Service Bus Queue Name" },
+                { "$serviceBusTrigger_topicName_label", "Service Bus Topic Name" },
+                { "$serviceBusTrigger_subscriptionName_label", "Service Bus Subscripton Name" }
+            };
         }
     }
 }

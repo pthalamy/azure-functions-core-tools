@@ -45,6 +45,9 @@
     <None Remove="StaticResources\NewTemplate-Python-HttpTrigger-function_body.py" />
     <None Remove="StaticResources\NewTemplate-Python-HttpTrigger-Template.json" />
     <None Remove="StaticResources\NewTemplate-Python-HttpTrigger-Template.md" />
+    <None Remove="StaticResources\NewTemplate-Python-TimerTrigger-function_app.py" />
+    <None Remove="StaticResources\NewTemplate-Python-TimerTrigger-function_body.py" />
+    <None Remove="StaticResources\NewTemplate-Python-TimerTrigger-template.json" />
     <None Remove="StaticResources\NewTemplate-userPrompts.json" />
     <None Remove="StaticResources\TimerTrigger-Python-Preview-Append.Main.function_app.py" />
     <None Remove="StaticResources\TimerTrigger-Python-Preview-Append.New.function_app.py" />
@@ -180,6 +183,9 @@
     <EmbeddedResource Include="StaticResources\NewTemplate-Python-HttpTrigger-Template.md">
       <LogicalName>$(AssemblyName).NewTemplate-Python-HttpTrigger-Template.md</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="StaticResources\NewTemplate-Python-TimerTrigger-function_app.py" />
+    <EmbeddedResource Include="StaticResources\NewTemplate-Python-TimerTrigger-function_body.py" />
+    <EmbeddedResource Include="StaticResources\NewTemplate-Python-TimerTrigger-template.json" />
     <EmbeddedResource Include="StaticResources\NewTemplate-userPrompts.json">
       <LogicalName>$(AssemblyName).NewTemplate-userPrompts.json</LogicalName>
     </EmbeddedResource>

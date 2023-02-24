@@ -71,7 +71,7 @@
       "errorText": "Unable to create the function app"
     },
     {
-      "name": "readFileContent_FunctionApp",
+      "name": "readFileContent_FunctionBody",
       "type": "ReadFromFile",
       "assignTo": "$(FUNCTION_BODY)",
       "filePath": "function_body.py"
