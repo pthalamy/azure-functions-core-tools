@@ -9,5 +9,8 @@ namespace Azure.Functions.Cli.Interfaces
         Task<IEnumerable<Template>> Templates { get; }
 
         Task Deploy(string name, string fileName, Template template);
+
+        Task<IEnumerable<NewTemplate>> NewTemplates { get; }
+        Task<IEnumerable<UserPrompt>> UserPrompts { get; }
     }
 }

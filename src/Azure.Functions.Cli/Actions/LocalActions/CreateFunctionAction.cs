@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,12 +8,8 @@ using Azure.Functions.Cli.Common;
 using Azure.Functions.Cli.ExtensionBundle;
 using Azure.Functions.Cli.Helpers;
 using Azure.Functions.Cli.Interfaces;
-using Azure.Storage.Blobs.Models;
 using Colors.Net;
-using DurableTask.Core;
 using Fclp;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.Azure.Documents;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -44,6 +39,8 @@ namespace Azure.Functions.Cli.Actions.LocalActions
         public AuthorizationLevel? AuthorizationLevel { get; set; }
 
         Lazy<IEnumerable<Template>> _templates;
+        Lazy<IEnumerable<NewTemplate>> _newTemplates;
+        Lazy<IEnumerable<UserPrompt>> _userPrompts;
 
 
         public CreateFunctionAction(ITemplatesManager templatesManager, ISecretsManager secretsManager, IContextHelpManager contextHelpManager)
@@ -53,6 +50,12 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             _contextHelpManager = contextHelpManager;
             _initAction = new InitAction(_templatesManager, _secretsManager);
             _templates = new Lazy<IEnumerable<Template>>(() => { return _templatesManager.Templates.Result; });
+            _newTemplates = new Lazy<IEnumerable<NewTemplate>>(() => { 
+                return _templatesManager.NewTemplates.Result; 
+            });
+            _userPrompts = new Lazy<IEnumerable<UserPrompt>>(() => {
+                return _templatesManager.UserPrompts.Result;
+            });
         }
 
         public override ICommandLineParserResult ParseArgs(string[] args)
@@ -95,6 +98,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
 
         public async override Task RunAsync()
         {
+            Console.WriteLine("Khuram test: In CreateFunctionAction.RunAsync");
             // Check if the command only ran for help. 
             if (!string.IsNullOrEmpty(TriggerNameForHelp))
             {
@@ -119,7 +123,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
                 var namespaceStr = Path.GetFileName(Environment.CurrentDirectory);
                 await DotnetHelpers.DeployDotnetFunction(TemplateName.Replace(" ", string.Empty), Utilities.SanitizeClassName(FunctionName), Utilities.SanitizeNameSpace(namespaceStr), Language.Replace("-isolated", ""), workerRuntime, AuthorizationLevel);
             }
-            else
+            else if (!IsNewPythonProgrammingModel())
             {
                 SelectionMenuHelper.DisplaySelectionWizardPrompt("template");
                 string templateLanguage;
@@ -166,6 +170,24 @@ namespace Azure.Functions.Cli.Actions.LocalActions
                     PerformPostDeployTasks(FunctionName, Language);
                 }
             }
+            else
+            {
+                // Implementing the new Python Template
+                var newTemplatesList = _newTemplates.Value;
+                var userPrompts = _userPrompts.Value;
+                var variables = new Dictionary<string, string>();
+                // TODO: Get template name here.
+                // TemplateName = TemplateName ?? SelectionMenuHelper.DisplaySelectionWizard(GetTriggerNames(templateLanguage));
+                var template = newTemplatesList.FirstOrDefault(t => string.Equals(t.Name, "HTTP trigger", StringComparison.CurrentCultureIgnoreCase) && string.Equals(t.Language, Languages.Python, StringComparison.CurrentCultureIgnoreCase));
+                var actionNames = template.Jobs.First(x => x.Input.UserCommand == "appendToFile").Actions;
+                var actions = template.Actions.Where(x => actionNames.Contains(x.Name)).ToList();
+                RunUserInputActions(actionNames, actions, variables);
+
+
+
+
+            }
+            
             ColoredConsole.WriteLine($"The function \"{FunctionName}\" was created successfully from the \"{TemplateName}\" template.");
             if (string.Equals(Language, Languages.Python, StringComparison.CurrentCultureIgnoreCase) && !IsNewPythonProgrammingModel())
             {
@@ -177,6 +199,120 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             {
                 NodeJSHelpers.PrintV4AwarenessMessage();
             }
+        }
+
+        private string RunUserInputActions(IList<string> actionNames, IList<TemplateAction> actions, IDictionary<string, string> variables)
+        {
+            foreach (var actionName in actionNames)
+            {
+                var action = actions.First(x => x.Name == actionName);
+                if (action.ActionType == "UserInput")
+                {
+                    continue;
+                }
+
+                var userPrompt = _userPrompts.Value.First(x => x.Name == action.ParamId);
+
+                var label = LabelMap(userPrompt.Label);
+                ColoredConsole.Write($"{label}: ");
+
+                var defaultValue = action.DefaultValue ?? userPrompt.DefaultValue;
+                if (!string.IsNullOrEmpty(defaultValue))
+                {
+                    ColoredConsole.Write($"[{defaultValue}] ");
+                }
+
+                string response = string.Empty;
+                if (userPrompt.Value == "enum" || userPrompt.Value == "boolean")
+                {
+                    var values = new List<string>() { true.ToString(), false.ToString() };
+                    if (userPrompt.Value == "enum")
+                    {
+                        values = userPrompt.EnumList.Select(x => x.Value).ToList();
+                    }
+
+                    while (!string.IsNullOrEmpty(response))
+                    {
+                        response = SelectionMenuHelper.DisplaySelectionWizard(values);
+                        if (string.IsNullOrEmpty(response) && !string.IsNullOrEmpty(defaultValue))
+                        {
+                            response = defaultValue;
+                        }
+                    }
+                }
+                else
+                {
+                    while (!string.IsNullOrEmpty(response))
+                    {
+                        response = Console.ReadLine();
+                        if (string.IsNullOrEmpty(response) && !string.IsNullOrEmpty(defaultValue))
+                        {
+                            response = defaultValue;
+                        }
+                    }
+                }
+
+                var variableName = 
+            }
+        }
+
+        private string LabelMap(string label)
+        {
+            if (label == "$httpTrigger_route_label")
+                return "Provide the route";
+
+            if (label == "Provide a function name")
+                return "Provide a function name";
+
+            if (label == "$httpTrigger_authLevel_label")
+                return "Provide the Auth Level";
+
+            if (label == "$queueTrigger_queueName_label")
+                return "Provide the Queue Name";
+
+            if (label == "$variables_storageConnStringLabel")
+                return "Provide the storage connection string";
+
+            if (label == "cosmosDBTrigger-connectionStringSetting")
+                return "Provide the Cosmos DB Connectiong Stirng";
+
+            if (label == "$cosmosDBIn_databaseName_label")
+                return "Provide the Cosmos DB Database Name";
+
+            if (label == "$cosmosDBIn_collectionName_label")
+                return "Provide the Cosmos DB Collection Name";
+
+            if (label == "$cosmosDBIn_leaseCollectionName_label")
+                return "Provide the Cosmos DB Lease Collection Name";
+
+            if (label == "$cosmosDBIn_createIfNotExists_label")
+                return "Create If Not Exists";
+
+            if (label == "$eventHubTrigger_connection_label")
+                return "Provide the EventHub Connection";
+
+            if (label == "$eventHubOut_path_label")
+                return "Provide the EventHub Oputput";
+
+            if (label == "$eventHubTrigger_consumerGroup_label")
+                return "Provide the EventHub Consumer Group";
+
+            if (label == "$eventHubTrigger_cardinality_label")
+                return "Provide the EventHub Cardinality";
+
+            if (label == "$serviceBusTrigger_connection_label")
+                return "Provide the ServiceBug Connection";
+
+            if (label == "$serviceBusTrigger_queueName_label")
+                return "Provide the Queue Name";
+
+            if (label == "$serviceBusTrigger_topicName_label")
+                return "Provide the Topic Name";
+
+            if (label == "$serviceBusTrigger_subscriptionName_label")
+                return "Provide the Subscripton Name";
+
+            return string.Empty;
         }
 
         public bool ValidateInputs()
@@ -266,9 +402,9 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             {
                 return _templates.Value.Where(t => t.Id.EndsWith("-4.x") && t.Metadata.Language.Equals(templateLanguage, StringComparison.OrdinalIgnoreCase));
             }
-            
-            if (IsNewPythonProgrammingModel()) 
-            { 
+
+            if (IsNewPythonProgrammingModel())
+            {
                 return _templates.Value.Where(t => t.Metadata.ProgrammingModel && t.Metadata.Language.Equals(templateLanguage, StringComparison.OrdinalIgnoreCase));
             }
 
@@ -359,7 +495,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
                 {
                     await UpdateLanguageAndRuntime();
                 }
-                
+
                 if (string.IsNullOrEmpty(Language) || !supportedLanguages.Contains(Language, StringComparer.CurrentCultureIgnoreCase))
                 {
                     if (!promptQuestions)

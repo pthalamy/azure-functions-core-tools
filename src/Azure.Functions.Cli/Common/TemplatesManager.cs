@@ -18,6 +18,12 @@ namespace Azure.Functions.Cli.Common
         private const string PythonProgrammingModelMainFileKey = "function_app.py";
         private const string PythonProgrammingModelNewFileKey = "function_new_app.py";
         private const string PythonProgrammingModelMainNewFileKey = "function_app_new.py";
+        
+
+        // New Template
+        private const string PythonProgrammingModelFunctionBodyFileKey = "function_body.py";
+        private const string PythonProgrammingModelTemplateDoc = "Template.md";
+
         private readonly ISecretsManager _secretsManager;
 
         public TemplatesManager(ISecretsManager secretsManager)
@@ -290,9 +296,83 @@ namespace Azure.Functions.Cli.Common
             }
         }
 
+        
+        /// <summary>
+        /// Get new templates
+        /// </summary>
+        /// 
+        public Task<IEnumerable<NewTemplate>> NewTemplates
+        {
+            get
+            {
+                return GetNewTemplates();
+            }
+        }
+
+        public async Task<IEnumerable<NewTemplate>> GetNewTemplates()
+        {
+            return await GetStaticNewTemplates();
+        }
+
+        private static async Task<IEnumerable<NewTemplate>> GetStaticNewTemplates()
+        {
+            // will add more templates
+            var templatesList = new string[] {
+                "HttpTrigger"
+            };
+
+            var templates = new List<NewTemplate>();
+            foreach (var templateName in templatesList)
+            {
+                templates.Add(await CreateStaticNewTemplate(templateName));
+            }
+            return templates;
+        }
+        
+        private static async Task<NewTemplate> CreateStaticNewTemplate(string templateName)
+        {
+            var prefix = "NewTemplate-Python";
+            var templaeFileName = $"{prefix}-{templateName}-Template.json";
+            var templateContentStr = await StaticResources.GetValue(templaeFileName);
+            var template = JsonConvert.DeserializeObject<NewTemplate>(templateContentStr);
+            template.Files = new Dictionary<string, string> {
+                { PythonProgrammingModelMainFileKey, await StaticResources.GetValue($"{prefix}-{templateName}-function_app.py") },
+                { PythonProgrammingModelFunctionBodyFileKey, await StaticResources.GetValue($"{prefix}-{templateName}-function_body.py") },
+                { PythonProgrammingModelTemplateDoc, await StaticResources.GetValue($"{prefix}-{templateName}-Template.md") }
+        };
+            return template;
+        }
+
         private string ReplaceFunctionNamePlaceholder(string str, string functionName)
         {
             return str?.Replace("%functionName%", functionName) ?? str;
+        }
+
+        public Task<IEnumerable<UserPrompt>> UserPrompts
+        {
+            get
+            {
+                return GetUserPrompts();
+            }
+        }
+
+        public async Task<IEnumerable<UserPrompt>> GetUserPrompts()
+        {
+            return await GetNewTemplateUserPrompts();
+        }
+
+        private static async Task<IEnumerable<UserPrompt>> GetNewTemplateUserPrompts()
+        {
+            var userPromptFileName = $"NewTemplate-userPrompts.json";
+            var userPromptStr = await StaticResources.GetValue(userPromptFileName);
+            try
+            {
+                var userPromptList = JsonConvert.DeserializeObject<UserPrompt[]>(userPromptStr);
+                return userPromptList;
+            }
+            catch (Exception ex) {
+                return null;
+            }
         }
     }
 }

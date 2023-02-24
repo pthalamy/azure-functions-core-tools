@@ -41,6 +41,11 @@
     <None Remove="StaticResources\HttpTrigger-Python-Preview-Append.Main.function_app.py" />
     <None Remove="StaticResources\HttpTrigger-Python-Preview-Append.New.function_app.py" />
     <None Remove="StaticResources\HttpTrigger-typescript-help.txt" />
+    <None Remove="StaticResources\NewTemplate-Python-HttpTrigger-function_app.py" />
+    <None Remove="StaticResources\NewTemplate-Python-HttpTrigger-function_body.py" />
+    <None Remove="StaticResources\NewTemplate-Python-HttpTrigger-Template.json" />
+    <None Remove="StaticResources\NewTemplate-Python-HttpTrigger-Template.md" />
+    <None Remove="StaticResources\NewTemplate-userPrompts.json" />
     <None Remove="StaticResources\TimerTrigger-Python-Preview-Append.Main.function_app.py" />
     <None Remove="StaticResources\TimerTrigger-Python-Preview-Append.New.function_app.py" />
   </ItemGroup>
@@ -162,6 +167,21 @@
     </EmbeddedResource>
     <EmbeddedResource Include="StaticResources\local.settings.json.template">
       <LogicalName>$(AssemblyName).local.settings.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="StaticResources\NewTemplate-Python-HttpTrigger-function_app.py">
+      <LogicalName>$(AssemblyName).NewTemplate-Python-HttpTrigger-function_app.py</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="StaticResources\NewTemplate-Python-HttpTrigger-function_body.py">
+      <LogicalName>$(AssemblyName).NewTemplate-Python-HttpTrigger-function_body.py</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="StaticResources\NewTemplate-Python-HttpTrigger-Template.json">
+      <LogicalName>$(AssemblyName).NewTemplate-Python-HttpTrigger-Template.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="StaticResources\NewTemplate-Python-HttpTrigger-Template.md">
+      <LogicalName>$(AssemblyName).NewTemplate-Python-HttpTrigger-Template.md</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="StaticResources\NewTemplate-userPrompts.json">
+      <LogicalName>$(AssemblyName).NewTemplate-userPrompts.json</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="StaticResources\QueueTrigger-Python-Preview-Append.function_app.py">
       <LogicalName>$(AssemblyName).QueueTrigger-Python-Preview-Append.function_app.py</LogicalName>
