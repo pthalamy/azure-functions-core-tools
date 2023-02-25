@@ -124,7 +124,25 @@ namespace Azure.Functions.Cli.Actions.LocalActions
                 var namespaceStr = Path.GetFileName(Environment.CurrentDirectory);
                 await DotnetHelpers.DeployDotnetFunction(TemplateName.Replace(" ", string.Empty), Utilities.SanitizeClassName(FunctionName), Utilities.SanitizeNameSpace(namespaceStr), Language.Replace("-isolated", ""), workerRuntime, AuthorizationLevel);
             }
-            else if (!IsNewPythonProgrammingModel())
+            else if (IsNewPythonProgrammingModel())
+            {
+                if (string.IsNullOrEmpty(TemplateName))
+                {
+                    SelectionMenuHelper.DisplaySelectionWizardPrompt("template");
+                    TemplateName = TemplateName ?? SelectionMenuHelper.DisplaySelectionWizard(GetTriggerNamesFromNewTemplates(Language));
+                }
+
+                var newTemplatesList = _newTemplates.Value;
+                var userPrompts = _userPrompts.Value;
+                var variables = new Dictionary<string, string>();
+                var template = newTemplatesList.FirstOrDefault(t => string.Equals(t.Name, TemplateName, StringComparison.CurrentCultureIgnoreCase) && string.Equals(t.Language, Language, StringComparison.CurrentCultureIgnoreCase));
+                var templateJob = template.Jobs.Single(x => x.Input.UserCommand.Equals("appendToFile", StringComparison.OrdinalIgnoreCase));
+                var actionNames = templateJob.Actions;
+                var actions = template.Actions.Where(x => actionNames.Contains(x.Name, StringComparer.OrdinalIgnoreCase)).ToList();
+                RunUserInputActions(actionNames, actions, variables);
+                await _templatesManager.Deploy(FileName, templateJob, template, variables);
+            }
+            else 
             {
                 SelectionMenuHelper.DisplaySelectionWizardPrompt("template");
                 string templateLanguage;
@@ -170,22 +188,6 @@ namespace Azure.Functions.Cli.Actions.LocalActions
                     await _templatesManager.Deploy(FunctionName, FileName, template);
                     PerformPostDeployTasks(FunctionName, Language);
                 }
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(TemplateName))
-                {
-                    SelectionMenuHelper.DisplaySelectionWizardPrompt("template");
-                    TemplateName = TemplateName ?? SelectionMenuHelper.DisplaySelectionWizard(GetTriggerNamesFromNewTemplates(Language));
-                }
-
-                var newTemplatesList = _newTemplates.Value;
-                var userPrompts = _userPrompts.Value;
-                var variables = new Dictionary<string, string>();
-                var template = newTemplatesList.FirstOrDefault(t => string.Equals(t.Name, TemplateName, StringComparison.CurrentCultureIgnoreCase) && string.Equals(t.Language, Language, StringComparison.CurrentCultureIgnoreCase));
-                var actionNames = template.Jobs.First(x => x.Input.UserCommand == "appendToFile").Actions;
-                var actions = template.Actions.Where(x => actionNames.Contains(x.Name)).ToList();
-                RunUserInputActions(actionNames, actions, variables);
             }
             
             ColoredConsole.WriteLine($"The function \"{FunctionName}\" was created successfully from the \"{TemplateName}\" template.");
@@ -476,8 +478,8 @@ namespace Azure.Functions.Cli.Actions.LocalActions
         {
             foreach (var actionName in actionNames)
             {
-                var action = actions.First(x => x.Name == actionName);
-                if (action.ActionType == "UserInput")
+                var action = actions.First(x => actionName.Equals(x.Name, StringComparison.OrdinalIgnoreCase));
+                if (action.ActionType != "UserInput")
                 {
                     continue;
                 }
@@ -548,7 +550,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             var validator = userPrompt.Validators?.FirstOrDefault();
             if (validator == null)
             {
-                return false;
+                return true;
             }
 
             var validationRegex = new Regex(validator.Expression);

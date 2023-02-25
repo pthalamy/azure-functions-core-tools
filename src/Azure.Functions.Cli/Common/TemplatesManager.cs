@@ -10,6 +10,7 @@ using Azure.Functions.Cli.ExtensionBundle;
 using System.Linq;
 using System.Reflection;
 using Microsoft.AspNetCore.Routing.Constraints;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Azure.Functions.Cli.Common
 {
@@ -77,7 +78,7 @@ namespace Azure.Functions.Cli.Common
             foreach (var actionName in job.Actions)
             {
                 var action = template.Actions.First(x => x.Name == actionName);
-                if (action.ActionType == "UserInput")
+                if (action.ActionType.Equals("UserInput", StringComparison.OrdinalIgnoreCase) || action.ActionType.Equals("ShowMarkdownPreview", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -182,7 +183,7 @@ namespace Azure.Functions.Cli.Common
             }
         }
 
-        public async Task<IEnumerable<NewTemplate>> GetNewTemplates()
+        private async Task<IEnumerable<NewTemplate>> GetNewTemplates()
         {
             return await GetStaticNewTemplates();
         }
@@ -248,14 +249,17 @@ namespace Azure.Functions.Cli.Common
             if (action.ActionType == "ReadFromFile")
             {
                 RunReadFromFileTemplateAction(template, action, variables);
+                return;
             }
             else if (action.ActionType == "ReplaceTokensInText")
             {
                 ReplaceTokensInText(template, action, variables);
+                return;
             }
             else if (action.ActionType == "AppendToFile")
             {
                 await WriteFunctionBody(template, action, variables);
+                return;
             }
 
             throw new CliException($"Template Failure. Action type '{action.ActionType}' is not supported.");
@@ -283,10 +287,12 @@ namespace Azure.Functions.Cli.Common
 
             foreach (var variable in variables)
             {
+                if (variable.Key == action.Source)
+                    continue;
+
                 sourceContent = sourceContent.Replace(variable.Key, variable.Value);
             }
 
-            sourceContent = sourceContent.Replace("", "");
             variables[action.Source] = sourceContent;
         }
 

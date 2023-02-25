@@ -24,12 +24,11 @@
     },
     {
       "name": "Append Timer Function to File",
-      "input": [
+      "input": 
         {
           "userCommand": "appendToFile",
           "assignTo": "$(SELECTED_FILENAME)"
-        }
-      ],
+        },
       "actions": [
         "getScheduleValue",
         "getFunctionNameAction",
