@@ -173,14 +173,16 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             }
             else
             {
-                TemplateName = TemplateName ?? SelectionMenuHelper.DisplaySelectionWizard(GetTriggerNamesFromNewTemplates(Languages.Python));
-                // Implementing the new Python Template
+                if (string.IsNullOrEmpty(TemplateName))
+                {
+                    SelectionMenuHelper.DisplaySelectionWizardPrompt("template");
+                    TemplateName = TemplateName ?? SelectionMenuHelper.DisplaySelectionWizard(GetTriggerNamesFromNewTemplates(Language));
+                }
+
                 var newTemplatesList = _newTemplates.Value;
                 var userPrompts = _userPrompts.Value;
                 var variables = new Dictionary<string, string>();
-                // TODO: Get template name here.
-                // TemplateName = TemplateName ?? SelectionMenuHelper.DisplaySelectionWizard(GetTriggerNames(templateLanguage));
-                var template = newTemplatesList.FirstOrDefault(t => string.Equals(t.Name, TemplateName, StringComparison.CurrentCultureIgnoreCase) && string.Equals(t.Language, Languages.Python, StringComparison.CurrentCultureIgnoreCase));
+                var template = newTemplatesList.FirstOrDefault(t => string.Equals(t.Name, TemplateName, StringComparison.CurrentCultureIgnoreCase) && string.Equals(t.Language, Language, StringComparison.CurrentCultureIgnoreCase));
                 var actionNames = template.Jobs.First(x => x.Input.UserCommand == "appendToFile").Actions;
                 var actions = template.Actions.Where(x => actionNames.Contains(x.Name)).ToList();
                 RunUserInputActions(actionNames, actions, variables);

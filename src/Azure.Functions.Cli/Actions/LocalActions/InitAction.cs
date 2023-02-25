@@ -227,8 +227,6 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             {
                 await NpmHelper.Install();
             }
-
-            // await FetchPackages(ResolvedWorkerRuntime, ResolvedProgrammingModel);
         }
 
         private static (WorkerRuntime, string) ResolveWorkerRuntimeAndLanguage(string workerRuntimeString, string languageString)

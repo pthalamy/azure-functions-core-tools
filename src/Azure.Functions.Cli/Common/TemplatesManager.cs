@@ -16,12 +16,8 @@ namespace Azure.Functions.Cli.Common
     internal class TemplatesManager : ITemplatesManager
     {
         private const string PythonProgrammingModelMainFileKey = "function_app.py";
-        private const string PythonProgrammingModelNewFileKey = "function_new_app.py";
-        private const string PythonProgrammingModelMainNewFileKey = "function_app_new.py";
-        
-
-        // New Template
         private const string PythonProgrammingModelFunctionBodyFileKey = "function_body.py";
+        private const string FunctionNameKey = "FUNCTION_BODY_TARGET_FILE_NAME";
 
         private readonly ISecretsManager _secretsManager;
 
@@ -55,12 +51,6 @@ namespace Azure.Functions.Cli.Common
             }
 
             var extensionBundleTemplates = JsonConvert.DeserializeObject<IEnumerable<Template>>(templatesJson);
-            // Extension bundle versions are strings in the form <majorVersion>.<minorVersion>.<patchVersion>
-            var extensionBundleMajorVersion = (await extensionBundleManager.GetExtensionBundleDetails()).Version[0];
-            if (extensionBundleMajorVersion == '2' || extensionBundleMajorVersion == '3')
-            {
-                return extensionBundleTemplates.Concat(await GetStaticTemplates());
-            }
             return extensionBundleTemplates;
         }
 
@@ -75,146 +65,15 @@ namespace Azure.Functions.Cli.Common
             return FileSystemHelpers.ReadAllTextFromFile(templatesLocation);
         }
 
-
-        // TODO: Remove this method once a solution for templates has been found
-        private static async Task<IEnumerable<Template>> GetStaticTemplates()
-        {
-            var templatesList = new string[] {
-                "BlobTrigger-Python-Preview-Append",
-                /*"CosmosDBTrigger-Python-Preview-Append",
-                "EventHubTrigger-Python-Preview-Append",*/
-                "HttpTrigger-Python-Preview-Append",
-                /*"QueueTrigger-Python-Preview-Append",
-                "ServiceBusQueueTrigger-Python-Preview-Append",
-                "ServiceBusTopicTrigger-Python-Preview-Append",*/
-                "TimerTrigger-Python-Preview-Append"
-            };
-
-            IList<Template> templates = new List<Template>();
-            foreach (var templateName in templatesList)
-            {
-                templates.Add(await CreateStaticTemplate(templateName));
-            }
-            return templates;
-        }
-
-        // TODO: Remove this hardcoding once a solution for templates has been found
-        private static async Task<Template> CreateStaticTemplate(string templateName)
-        {
-            // var gitIgnoreTest = StaticResources.GitIgnore;
-            Template template = new Template();
-            template.Id = templateName;
-            var metaFileName = $"{templateName}.metadata.json";
-            var metaContentStr = await StaticResources.GetValue(metaFileName);
-            template.Metadata = JsonConvert.DeserializeObject<TemplateMetadata>(
-                await StaticResources.GetValue($"{templateName}.metadata.json"
-            ));
-            template.Files = new Dictionary<string, string> {
-                { PythonProgrammingModelMainFileKey, await StaticResources.GetValue($"{templateName}.function_app.py") },
-                { PythonProgrammingModelNewFileKey, await StaticResources.GetValue($"{templateName}.New.function_app.py") },
-                { PythonProgrammingModelMainNewFileKey, await StaticResources.GetValue($"{templateName}.Main.function_app.py") }
-        };
-            template.Metadata.ProgrammingModel = true;
-            return template;
-        }
-
-
         public async Task Deploy(string name, string fileName, Template template)
         {
-            // todo: this logic will change with the new template schema. 
-            if (template.Metadata.ProgrammingModel && template.Metadata.Language.Equals("Python", StringComparison.OrdinalIgnoreCase))
-            {
-                await DeployNewPythonProgrammingModel(name, fileName, template);
-            }
-            // todo: Temporary logic. This logic will change with the new template schema. 
-            else if (template.Id.EndsWith("JavaScript-4.x") || template.Id.EndsWith("TypeScript-4.x"))
-            {
-                await DeployNewNodeProgrammingModel(name, fileName, template);
-            }
-            else
-            {
-                await DeployLegacyModel(name, template);
-            }
-
+            await DeployLegacyModel(name, template);
             await InstallExtensions(template);
         }
 
-        private async Task DeployNewNodeProgrammingModel (string functionName, string fileName, Template template)
+        public async Task Deploy(string fileName, TemplateJob job, NewTemplate template, IDictionary<string, string> variables)
         {
-            var templateFiles = template.Files.Where(kv => !kv.Key.EndsWith(".dat"));
-            var fileList = new Dictionary<string, string>();
-
-            // Running the validations here. There is no change in the user data in this loop.
-            foreach (var file in templateFiles)
-            {
-                fileName = fileName ?? ReplaceFunctionNamePlaceholder(file.Key, functionName);
-                var filePath = Path.Combine(Path.Combine(Environment.CurrentDirectory, "src", "functions"), fileName);
-                AskToRemoveFileIfExists(filePath, functionName);
-                fileList.Add(filePath, ReplaceFunctionNamePlaceholder(file.Value, functionName));
-            }
-
-            foreach (var filePath in fileList.Keys)
-            {
-                RemoveFileIfExists(filePath);
-                ColoredConsole.WriteLine($"Creating a new file {filePath}");
-                await FileSystemHelpers.WriteAllTextToFileAsync(filePath, fileList[filePath]);
-            }
-        }
-
-        private async Task DeployNewPythonProgrammingModel(string functionName, string fileName, Template template)
-        {
-            var files = template.Files.Where(kv => !kv.Key.EndsWith(".dat"));
-
-            if (files.Count() != 3)
-            {
-                throw new CliException($"The function with the name {functionName} couldn't be created. We couldn't find the expected files in the template.");
-            }
-
-            var mainFilePath = Path.Combine(Environment.CurrentDirectory, PythonProgrammingModelMainFileKey);
-            var mainFileContent = await FileSystemHelpers.ReadAllTextFromFileAsync(mainFilePath);
-
-            // Verify the target file doesn't exist. Delete with permission if it already exists. 
-            if (!string.IsNullOrEmpty(fileName))
-            {
-                var filePath = Path.Combine(Environment.CurrentDirectory, fileName);
-                AskToRemoveFileIfExists(filePath, functionName, removeFile: true);
-            }
-
-            // Create/Update the needed files. 
-            foreach (var file in files)
-            {
-                var fileContent = file.Value.Replace("FunctionName", functionName);
-                if (file.Key == PythonProgrammingModelMainFileKey && !string.IsNullOrEmpty(fileName))
-                {
-                    ColoredConsole.WriteLine($"Appending to {mainFilePath}");
-                    mainFileContent = $"{mainFileContent}{Environment.NewLine}{Environment.NewLine}{fileContent}";
-                    var importLine = $"from {Path.GetFileNameWithoutExtension(fileName)} import {functionName}Impl";
-                    // Add the import line for new file.
-                    var funcImportLine = "import azure.functions as func";
-                    mainFileContent = mainFileContent.Replace(funcImportLine, $"{funcImportLine}{Environment.NewLine}{importLine}");
-
-                    // Update the file. 
-                    await FileSystemHelpers.WriteAllTextToFileAsync(mainFilePath, mainFileContent);
-                }
-                else if (file.Key == PythonProgrammingModelNewFileKey && !string.IsNullOrEmpty(fileName))
-                {
-                    var filePath = Path.Combine(Environment.CurrentDirectory, fileName);
-                    ColoredConsole.WriteLine($"Creating a new file {filePath}");
-                    await FileSystemHelpers.WriteAllTextToFileAsync(filePath, fileContent);
-                }
-                if (file.Key == PythonProgrammingModelMainNewFileKey && string.IsNullOrEmpty(fileName))
-                {
-                    ColoredConsole.WriteLine($"Appending to {mainFilePath}");
-                    mainFileContent = $"{mainFileContent}{Environment.NewLine}{Environment.NewLine}{fileContent}";
-                    // Update the file. 
-                    await FileSystemHelpers.WriteAllTextToFileAsync(mainFilePath, mainFileContent);
-                }
-            }
-        }
-
-        public async Task DeployNewTemplate(string fileName, TemplateJob job, NewTemplate template, IDictionary<string, string> variables)
-        {
-            variables.Add("FUNCTION_BODY_TARGET_FILE_NAME", fileName);
+            variables.Add(FunctionNameKey, fileName);
             foreach (var actionName in job.Actions)
             {
                 var action = template.Actions.First(x => x.Name == actionName);
@@ -223,81 +82,7 @@ namespace Azure.Functions.Cli.Common
                     continue;
                 }
 
-                RunTemplateActionAction(template, action, variables);
-            }
-        }
-
-        private async void RunTemplateActionAction(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
-        {
-            if (action.ActionType == "ReadFromFile")
-            {
-                RunReadFromFileTemplateAction(template, action, variables);
-            }
-            else if (action.ActionType == "ReplaceTokensInText")
-            {
-                ReplaceTokensInText(template, action, variables);
-            }
-            else if (action.ActionType == "AppendToFile")
-            {
-                await WriteFunctionBody(template, action, variables);
-            }
-
-            throw new CliException($"Template Failure. Action type '{action.ActionType}' is not supported.");
-        }
-        
-        private void RunReadFromFileTemplateAction (NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
-        {
-            if (!template.Files.ContainsKey(action.FilePath))
-            {
-                throw new CliException($"Template Failure. File name '{action.FilePath}' is not found in the template.");
-            }
-
-            var fileContent = template.Files[action.FilePath];
-            variables.Add(action.AssignTo, fileContent);
-        }
-
-        private void ReplaceTokensInText(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
-        {
-            if (!variables.ContainsKey(action.Source))
-            {
-                throw new CliException($"Template Failure. Source '{action.Source}' value is not found.");
-            }
-
-            var sourceContent = variables[action.Source];
-
-            foreach (var variable in variables)
-            {
-                sourceContent = sourceContent.Replace(variable.Key, variable.Value);
-            }
-
-            sourceContent = sourceContent.Replace("", "");
-            variables[action.Source] = sourceContent;
-        }
-
-        private async Task WriteFunctionBody(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
-        {
-            if (!variables.ContainsKey(action.Source))
-            {
-                throw new CliException($"Template Failure. Source '{action.Source}' value is not found.");
-            }
-
-            var fileName = variables["FUNCTION_BODY_TARGET_FILE_NAME"];
-
-            if (!string.IsNullOrEmpty(fileName))
-            {
-                var filePath = Path.Combine(Environment.CurrentDirectory, fileName);
-                AskToRemoveFileIfExists(filePath, variables.First(x => x.Key.Contains("FUNCTION_NAME_INPUT")).Value, removeFile: true);
-                ColoredConsole.WriteLine($"Creating a new file {filePath}");
-                await FileSystemHelpers.WriteAllTextToFileAsync(filePath, variables[action.Source]);
-            }
-            else
-            {
-                var mainFilePath = Path.Combine(Environment.CurrentDirectory, PythonProgrammingModelMainFileKey);
-                var mainFileContent = await FileSystemHelpers.ReadAllTextFromFileAsync(mainFilePath);
-                ColoredConsole.WriteLine($"Appending to {mainFilePath}");
-                mainFileContent = $"{mainFileContent}{Environment.NewLine}{Environment.NewLine}{variables[action.Source]}";
-                // Update the file. 
-                await FileSystemHelpers.WriteAllTextToFileAsync(mainFilePath, mainFileContent);
+                await RunTemplateActionAction(template, action, variables);
             }
         }
 
@@ -427,14 +212,8 @@ namespace Azure.Functions.Cli.Common
             template.Files = new Dictionary<string, string> {
                 { PythonProgrammingModelMainFileKey, await StaticResources.GetValue($"{prefix}-{templateName}-function_app.py") },
                 { PythonProgrammingModelFunctionBodyFileKey, await StaticResources.GetValue($"{prefix}-{templateName}-function_body.py") },
-                // { PythonProgrammingModelTemplateDoc, await StaticResources.GetValue($"{prefix}-{templateName}-Template.md") }
         };
             return template;
-        }
-
-        private string ReplaceFunctionNamePlaceholder(string str, string functionName)
-        {
-            return str?.Replace("%functionName%", functionName) ?? str;
         }
 
         public Task<IEnumerable<UserPrompt>> UserPrompts
@@ -461,6 +240,80 @@ namespace Azure.Functions.Cli.Common
             }
             catch (Exception ex) {
                 return null;
+            }
+        }
+
+        private async Task RunTemplateActionAction(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
+        {
+            if (action.ActionType == "ReadFromFile")
+            {
+                RunReadFromFileTemplateAction(template, action, variables);
+            }
+            else if (action.ActionType == "ReplaceTokensInText")
+            {
+                ReplaceTokensInText(template, action, variables);
+            }
+            else if (action.ActionType == "AppendToFile")
+            {
+                await WriteFunctionBody(template, action, variables);
+            }
+
+            throw new CliException($"Template Failure. Action type '{action.ActionType}' is not supported.");
+        }
+
+        private void RunReadFromFileTemplateAction(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
+        {
+            if (!template.Files.ContainsKey(action.FilePath))
+            {
+                throw new CliException($"Template Failure. File name '{action.FilePath}' is not found in the template.");
+            }
+
+            var fileContent = template.Files[action.FilePath];
+            variables.Add(action.AssignTo, fileContent);
+        }
+
+        private void ReplaceTokensInText(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
+        {
+            if (!variables.ContainsKey(action.Source))
+            {
+                throw new CliException($"Template Failure. Source '{action.Source}' value is not found.");
+            }
+
+            var sourceContent = variables[action.Source];
+
+            foreach (var variable in variables)
+            {
+                sourceContent = sourceContent.Replace(variable.Key, variable.Value);
+            }
+
+            sourceContent = sourceContent.Replace("", "");
+            variables[action.Source] = sourceContent;
+        }
+
+        private async Task WriteFunctionBody(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
+        {
+            if (!variables.ContainsKey(action.Source))
+            {
+                throw new CliException($"Template Failure. Source '{action.Source}' value is not found.");
+            }
+
+            var fileName = variables["FUNCTION_BODY_TARGET_FILE_NAME"];
+
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                var filePath = Path.Combine(Environment.CurrentDirectory, fileName);
+                AskToRemoveFileIfExists(filePath, variables.First(x => x.Key.Contains("FUNCTION_NAME_INPUT")).Value, removeFile: true);
+                ColoredConsole.WriteLine($"Creating a new file {filePath}");
+                await FileSystemHelpers.WriteAllTextToFileAsync(filePath, variables[action.Source]);
+            }
+            else
+            {
+                var mainFilePath = Path.Combine(Environment.CurrentDirectory, PythonProgrammingModelMainFileKey);
+                var mainFileContent = await FileSystemHelpers.ReadAllTextFromFileAsync(mainFilePath);
+                ColoredConsole.WriteLine($"Appending to {mainFilePath}");
+                mainFileContent = $"{mainFileContent}{Environment.NewLine}{Environment.NewLine}{variables[action.Source]}";
+                // Update the file. 
+                await FileSystemHelpers.WriteAllTextToFileAsync(mainFilePath, mainFileContent);
             }
         }
     }
