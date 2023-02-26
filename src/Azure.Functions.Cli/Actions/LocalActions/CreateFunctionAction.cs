@@ -479,7 +479,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             foreach (var actionName in actionNames)
             {
                 var action = actions.First(x => actionName.Equals(x.Name, StringComparison.OrdinalIgnoreCase));
-                if (action.ActionType != "UserInput")
+                if (action.ActionType != UserInputActionType)
                 {
                     continue;
                 }
@@ -487,29 +487,33 @@ namespace Azure.Functions.Cli.Actions.LocalActions
                 var userPrompt = _userPrompts.Value.First(x => x.Name == action.ParamId);
                 var defaultValue = action.DefaultValue ?? userPrompt.DefaultValue;
                 string response = string.Empty;
-                if (userPrompt.Value == "enum" || userPrompt.Value == "boolean")
+                if (userPrompt.Value == UserPromptEnumType || userPrompt.Value == UserPromptBooleanType)
                 {
                     var values = new List<string>() { true.ToString(), false.ToString() };
-                    if (userPrompt.Value == "enum")
+                    if (userPrompt.Value == UserPromptEnumType)
                     {
-                        values = userPrompt.EnumList.Select(x => x.Value).ToList();
+                        values = userPrompt.EnumList.Select(x => x.Display).ToList();
                     }
 
                     while (!ValidateResponse(userPrompt, response))
                     {
                         SelectionMenuHelper.DisplaySelectionWizardPrompt(LabelMap(userPrompt.Label));
                         response = SelectionMenuHelper.DisplaySelectionWizard(values);
+
                         if (string.IsNullOrEmpty(response) && !string.IsNullOrEmpty(defaultValue))
                         {
                             response = defaultValue;
+                        }
+                        else if (userPrompt.Value == UserPromptEnumType)
+                        {
+                            response = userPrompt.EnumList.Single(x => x.Display == response).Value;
                         }
                     }
                 }
                 else
                 {
-                    // User the function name if it is already provided by user
-                    // todo: User Constants
-                    if ("getFunctionName".Equals(actionName, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(FunctionName))
+                    // Use the function name if it is already provided by user
+                    if (actionName.Equals(GetFunctionNameAction, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(FunctionName))
                     {
                         response = FunctionName;
                     }
@@ -527,6 +531,10 @@ namespace Azure.Functions.Cli.Actions.LocalActions
 
                 var variableName = action.AssignTo;
                 variables.Add(variableName, response);
+
+                if (actionName.Equals(GetFunctionNameAction, StringComparison.OrdinalIgnoreCase)) {
+                    FunctionName = response;
+                }
             }
         }
 
@@ -558,7 +566,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
 
             if (!isValid)
             {
-                ColoredConsole.WriteLine($"{this.LabelMap(userPrompt.Label)} is not valid.");
+                ColoredConsole.WriteLine(ErrorColor($"{this.LabelMap(userPrompt.Label)} is not valid."));
             }
 
             return isValid;
@@ -567,7 +575,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
         private string LabelMap(string label)
         {
             if (!_newTemplateLabelMap.ContainsKey(label))
-                return string.Empty;
+                return label;
 
             return _newTemplateLabelMap[label];
         }
@@ -593,7 +601,8 @@ namespace Azure.Functions.Cli.Actions.LocalActions
                 { "$serviceBusTrigger_connection_label", "Service Bus Connection" },
                 { "$serviceBusTrigger_queueName_label", "Service Bus Queue Name" },
                 { "$serviceBusTrigger_topicName_label", "Service Bus Topic Name" },
-                { "$serviceBusTrigger_subscriptionName_label", "Service Bus Subscripton Name" }
+                { "$serviceBusTrigger_subscriptionName_label", "Service Bus Subscripton Name" },
+                {"$timerTrigger_schedule_label", "Schedule" }
             };
         }
     }

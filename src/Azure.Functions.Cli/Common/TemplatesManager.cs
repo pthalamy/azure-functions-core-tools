@@ -17,8 +17,6 @@ namespace Azure.Functions.Cli.Common
     internal class TemplatesManager : ITemplatesManager
     {
         private const string PythonProgrammingModelMainFileKey = "function_app.py";
-        private const string PythonProgrammingModelFunctionBodyFileKey = "function_body.py";
-        private const string FunctionNameKey = "FUNCTION_BODY_TARGET_FILE_NAME";
 
         private readonly ISecretsManager _secretsManager;
 
@@ -74,11 +72,11 @@ namespace Azure.Functions.Cli.Common
 
         public async Task Deploy(string fileName, TemplateJob job, NewTemplate template, IDictionary<string, string> variables)
         {
-            variables.Add(FunctionNameKey, fileName);
+            variables.Add(Constants.FunctionBodyTargetFileName, fileName);
             foreach (var actionName in job.Actions)
             {
-                var action = template.Actions.First(x => x.Name == actionName);
-                if (action.ActionType.Equals("UserInput", StringComparison.OrdinalIgnoreCase) || action.ActionType.Equals("ShowMarkdownPreview", StringComparison.OrdinalIgnoreCase))
+                var action = template.Actions.First(x => x.Name.Equals(actionName, StringComparison.OrdinalIgnoreCase));
+                if (action.ActionType.Equals(Constants.UserInputActionType, StringComparison.OrdinalIgnoreCase) || action.ActionType.Equals(Constants.ShowMarkdownPreviewActionType, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -174,7 +172,6 @@ namespace Azure.Functions.Cli.Common
         /// <summary>
         /// Get new templates
         /// </summary>
-        /// 
         public Task<IEnumerable<NewTemplate>> NewTemplates
         {
             get
@@ -190,7 +187,7 @@ namespace Azure.Functions.Cli.Common
 
         private static async Task<IEnumerable<NewTemplate>> GetStaticNewTemplates()
         {
-            // will add more templates
+            // We will add more templates
             var templatesList = new string[] {
                 "HttpTrigger",
                 "TimerTrigger"
@@ -210,10 +207,12 @@ namespace Azure.Functions.Cli.Common
             var templaeFileName = $"{prefix}-{templateName}-Template.json";
             var templateContentStr = await StaticResources.GetValue(templaeFileName);
             var template = JsonConvert.DeserializeObject<NewTemplate>(templateContentStr);
-            template.Files = new Dictionary<string, string> {
-                { PythonProgrammingModelMainFileKey, await StaticResources.GetValue($"{prefix}-{templateName}-function_app.py") },
-                { PythonProgrammingModelFunctionBodyFileKey, await StaticResources.GetValue($"{prefix}-{templateName}-function_body.py") },
-        };
+            template.Files = new Dictionary<string, string> 
+            {
+                { Constants.PySteinFunctionAppPy, await StaticResources.GetValue($"{prefix}-{templateName}-function_app.py") },
+                { Constants.PythonProgrammingModelFunctionBodyFileKey, await StaticResources.GetValue($"{prefix}-{templateName}-function_body.py") },
+            };
+            
             return template;
         }
 
@@ -232,16 +231,9 @@ namespace Azure.Functions.Cli.Common
 
         private static async Task<IEnumerable<UserPrompt>> GetNewTemplateUserPrompts()
         {
-            var userPromptFileName = $"NewTemplate-userPrompts.json";
-            var userPromptStr = await StaticResources.GetValue(userPromptFileName);
-            try
-            {
-                var userPromptList = JsonConvert.DeserializeObject<UserPrompt[]>(userPromptStr);
-                return userPromptList;
-            }
-            catch (Exception ex) {
-                return null;
-            }
+            var userPromptStr = await StaticResources.GetValue(Constants.UserPromptFileName);
+            var userPromptList = JsonConvert.DeserializeObject<UserPrompt[]>(userPromptStr);
+            return userPromptList;
         }
 
         private async Task RunTemplateActionAction(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
@@ -293,7 +285,7 @@ namespace Azure.Functions.Cli.Common
                 sourceContent = sourceContent.Replace(variable.Key, variable.Value);
             }
 
-            variables[action.Source] = sourceContent;
+            variables[action.AssignTo] = sourceContent;
         }
 
         private async Task WriteFunctionBody(NewTemplate template, TemplateAction action, IDictionary<string, string> variables)
@@ -303,7 +295,7 @@ namespace Azure.Functions.Cli.Common
                 throw new CliException($"Template Failure. Source '{action.Source}' value is not found.");
             }
 
-            var fileName = variables["FUNCTION_BODY_TARGET_FILE_NAME"];
+            var fileName = variables[Constants.FunctionBodyTargetFileName];
 
             if (!string.IsNullOrEmpty(fileName))
             {
@@ -314,7 +306,7 @@ namespace Azure.Functions.Cli.Common
             }
             else
             {
-                var mainFilePath = Path.Combine(Environment.CurrentDirectory, PythonProgrammingModelMainFileKey);
+                var mainFilePath = Path.Combine(Environment.CurrentDirectory, Constants.PySteinFunctionAppPy);
                 var mainFileContent = await FileSystemHelpers.ReadAllTextFromFileAsync(mainFilePath);
                 ColoredConsole.WriteLine($"Appending to {mainFilePath}");
                 mainFileContent = $"{mainFileContent}{Environment.NewLine}{Environment.NewLine}{variables[action.Source]}";
