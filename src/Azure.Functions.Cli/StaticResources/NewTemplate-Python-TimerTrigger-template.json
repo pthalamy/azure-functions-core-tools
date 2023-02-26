@@ -24,17 +24,16 @@
     },
     {
       "name": "Append Timer Function to File",
-      "input": 
-        {
-          "userCommand": "appendToFile",
-          "assignTo": "$(SELECTED_FILENAME)"
-        },
+      "input": {
+        "userCommand": "appendToFile",
+        "assignTo": "$(SELECTED_FILENAME)"
+      },
       "actions": [
         "getScheduleValue",
         "getFunctionName",
         "readFileContent_FunctionBody",
         "replaceText_FunctionBody",
-        "appendFileContent_FunctionBody",
+        "appendFileContent_FunctionApp",
         "showMarkdownPreview"
       ]
     }
@@ -85,7 +84,7 @@
       "source": "$(FUNCTION_APP_TRANSFORMED)"
     },
     {
-      "name": "appendFileContent_FunctionBody",
+      "name": "appendFileContent_FunctionApp",
       "type": "AppendToFile",
       "createIfNotExists": false,
       "source": "$(TIMER_FUNCTION_BODY)",
