@@ -14,6 +14,7 @@ namespace Azure.Functions.Cli.Common
     public class ContextHelpManager : IContextHelpManager
     {
         private IDictionary<string, string> _triggerHelp;
+        private IDictionary<string, string> _triggerNameMap;
         private IList<string> _triggerHelpSupportedLanguages => new List<string>() { Languages.JavaScript, Languages.TypeScript, Languages.Python };
         
         public string GetTriggerHelp(string triggerName, string language)
@@ -35,38 +36,37 @@ namespace Azure.Functions.Cli.Common
 
         public async Task LoadTriggerHelp(string language, List<string> triggerNames)
         {
-            var triggerHelpDictionary = CreateTemplateMapForHelp(triggerNames);
+            CreateTemplateMapForHelp(triggerNames);
             
             if (!_triggerHelpSupportedLanguages.Contains(language, StringComparer.OrdinalIgnoreCase))
             {
                 throw new CliException("Only Python, JavaScript and TypeScript support this help command at the moment.");
             }
 
-            foreach (var triggerName in triggerNames)
+            _triggerHelp = new Dictionary<string, string>();
+            foreach (var triggerKeyValue in _triggerNameMap)
             {
-                var triggerHelpContent = await StaticResources.GetValue($"{language?.ToLower()}-{triggerName}-help.txt");
-                triggerHelpDictionary.Add(GetTriggerHelpKey(triggerName, language), triggerHelpContent);
+                var triggerHelpContent = await StaticResources.GetValue($"{language?.ToLower()}-{triggerKeyValue.Value}-help.txt");
+                _triggerHelp.Add(GetTriggerHelpKey(triggerKeyValue.Value, language), triggerHelpContent);
             }
-
-            _triggerHelp = triggerHelpDictionary;
         }
 
         public bool IsValidTriggerNameForHelp(string triggerName)
         {
-            return _triggerHelp.Keys.Any(x => x.Equals(triggerName, StringComparison.OrdinalIgnoreCase));
+            return _triggerNameMap.Keys.Any(x => x.Equals(triggerName, StringComparison.OrdinalIgnoreCase));
         }
 
         public bool IsValidTriggerTypeForHelp(string triggerName)
         {
-            return _triggerHelp.Values.Any(x => x.Equals(triggerName, StringComparison.OrdinalIgnoreCase));
+            return _triggerNameMap.Values.Any(x => x.Equals(triggerName, StringComparison.OrdinalIgnoreCase));
         }
 
         public string GetTriggerTypeFromTriggerNameForHelp(string triggerName)
         {
-            return _triggerHelp.FirstOrDefault(x => x.Key.Equals(triggerName, StringComparison.OrdinalIgnoreCase)).Value;
+            return _triggerNameMap.FirstOrDefault(x => x.Key.Equals(triggerName, StringComparison.OrdinalIgnoreCase)).Value;
         }
 
-        private static IDictionary<string, string> CreateTemplateMapForHelp(List<string> triggerNames)
+        private void CreateTemplateMapForHelp(List<string> triggerNames)
         {
             var map = new Dictionary<string, string>
             {
@@ -83,7 +83,7 @@ namespace Azure.Functions.Cli.Common
                 { "Timer trigger", "TimerTrigger" }
             };
 
-            return map.Where(kvp => triggerNames.Contains(kvp.Value, StringComparer.OrdinalIgnoreCase))
+            _triggerNameMap = map.Where(kvp => triggerNames.Contains(kvp.Key, StringComparer.OrdinalIgnoreCase))
                 .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
         }
 

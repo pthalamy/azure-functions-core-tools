@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Azure.Functions.Cli.Common;
 using Azure.Functions.Cli.ExtensionBundle;
+using Azure.Functions.Cli.Extensions;
 using Azure.Functions.Cli.Helpers;
 using Azure.Functions.Cli.Interfaces;
 using Colors.Net;
@@ -36,6 +37,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
         public bool Csx { get; set; }
         private string TriggerNameForHelp { get; set; }
         private string FileName { get; set; }
+        private string Route { get; set; }
         public AuthorizationLevel? AuthorizationLevel { get; set; }
 
         Lazy<IEnumerable<Template>> _templates;
@@ -76,6 +78,11 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             Parser
                 .Setup<string>('f', "file")
                 .WithDescription("File Name")
+                .Callback(f => FileName = f);
+
+            Parser
+                .Setup<string>('r', "route")
+                .WithDescription("Route")
                 .Callback(f => FileName = f);
 
             Parser
@@ -284,7 +291,8 @@ namespace Azure.Functions.Cli.Actions.LocalActions
 
         private IEnumerable<Template> GetLanguageTemplates(string templateLanguage, bool forNewModelHelp = false)
         {
-            if (IsNewNodeJsProgrammingModel(workerRuntime) || (forNewModelHelp && (Language == Languages.TypeScript || Language == Languages.JavaScript)))
+            if (IsNewNodeJsProgrammingModel(workerRuntime) ||
+                (forNewModelHelp && (Languages.TypeScript.EqualsIgnoreCase(templateLanguage) || Languages.JavaScript.EqualsIgnoreCase(templateLanguage))))
             {
                 return _templates.Value.Where(t => t.Id.EndsWith("-4.x") && t.Metadata.Language.Equals(templateLanguage, StringComparison.OrdinalIgnoreCase));
             }
@@ -299,7 +307,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
 
         private IEnumerable<NewTemplate> GetNewTemplates(string templateLanguage, bool forNewModelHelp = false)
         {
-            if (IsNewPythonProgrammingModel() || (templateLanguage == Languages.Python && forNewModelHelp))
+            if (IsNewPythonProgrammingModel() || (Languages.Python.EqualsIgnoreCase(templateLanguage) && forNewModelHelp))
             {
                 return _newTemplates.Value.Where(t => t.Language.Equals(templateLanguage, StringComparison.OrdinalIgnoreCase));
             }
@@ -405,7 +413,7 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             }
 
             IEnumerable<string> triggerNames;
-            if (Language == Languages.Python)
+            if (Languages.Python.EqualsIgnoreCase(Language))
             {
                 triggerNames = GetTriggerNamesFromNewTemplates(Language, forNewModelHelp: true);
             }
@@ -424,13 +432,13 @@ namespace Azure.Functions.Cli.Actions.LocalActions
             {
                 ColoredConsole.WriteLine(ErrorColor($"The trigger name '{TriggerNameForHelp}' is not valid for {Language} language. "));
                 SelectionMenuHelper.DisplaySelectionWizardPrompt("valid trigger");
-                triggerName = SelectionMenuHelper.DisplaySelectionWizard(GetTriggerNames(Language, forNewModelHelp: true));
+                triggerName = SelectionMenuHelper.DisplaySelectionWizard(triggerNames);
                 triggerName = _contextHelpManager.GetTriggerTypeFromTriggerNameForHelp(triggerName);
             }
 
             if (_contextHelpManager.IsValidTriggerTypeForHelp(triggerName))
             {
-                ColoredConsole.Write(AdditionalInfoColor(_contextHelpManager.GetTriggerHelp(triggerName, Language)));
+                ColoredConsole.Write(AdditionalInfoColor($"{Environment.NewLine}{_contextHelpManager.GetTriggerHelp(triggerName, Language)}"));
                 return true;
             }
 
